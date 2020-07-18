@@ -1,0 +1,126 @@
+// Codigo para medir corriente usando tres SCT-013 y un ESP32
+// Board seleccionado: NODEMCU-32S
+// 20 Junio 2020
+
+
+// Incluir Emon Library
+#include "EmonLib.h"
+
+// Crear tres instancias de EnergyMonitor
+EnergyMonitor energyMonitor1;
+EnergyMonitor energyMonitor2;
+EnergyMonitor energyMonitor3;
+
+// Voltaje de red eléctrica
+float voltajeRed = 120.0;
+
+#define ADC_INPUT_1 34    // Sensor 1
+#define ADC_INPUT_2 32    // Sensor 2
+#define ADC_INPUT_3 35    // Sensor 3
+
+
+// Librerias de Adafruit IO
+#include "AdafruitIO_WiFi.h"
+
+#define WIFI_SSID   "WIFI_USERNAME_HERE"  // WiFi Username
+#define WIFI_PASS   "WIFI_PASSWORD_HERE"  // Wifi Password
+
+#define IO_USERNAME "AdafruitIO_Username_Here"  //AdafruitIO Username
+#define IO_KEY      "AdafruitIO_Password_Here" //AdafruitIO Key
+
+// Connect to Wi-Fi and Adafruit IO handle
+AdafruitIO_WiFi io(IO_USERNAME, IO_KEY, WIFI_SSID, WIFI_PASS);
+
+// Create a feed object that allows us to send data to
+AdafruitIO_Feed *lineauno= io.feed("Linea1");
+AdafruitIO_Feed *lineados= io.feed("Linea2");
+AdafruitIO_Feed *lineatres= io.feed("Linea3");
+
+
+void setup()
+{
+
+  Serial.begin(9600);
+
+  // Número de pin: donde tenemos conectado el SCT-013
+  // Valor de calibración: valor obtenido de la calibración teórica
+  energyMonitor1.current(ADC_INPUT_1, 0.145);
+  energyMonitor2.current(ADC_INPUT_2, 0.145);
+  energyMonitor3.current(ADC_INPUT_3, 0.145);
+
+  // Connect to Adafruit IO
+  io.connect();
+
+  // wait for a connection
+  while (io.status() < AIO_CONNECTED)
+  {
+    Serial.print(".");
+    delay(500);
+  }
+
+}
+
+
+void loop()
+{
+  // Always keep this at the top of your main loop
+  // While not confirmed, this implies that the Adafruit IO library is not event-driven
+  // This means you should refrain from using infinite loops
+  io.run();
+
+
+  // Pasamos el número de muestras que queremos tomar
+  double Irms1 = energyMonitor1.calcIrms(1484);
+  // Calculamos la potencia aparente
+  double potencia1 =  Irms1 * voltajeRed;
+
+  // Pasamos el número de muestras que queremos tomar
+  double Irms2 = energyMonitor2.calcIrms(1484);
+  // Calculamos la potencia aparente
+  double potencia2 =  Irms2 * voltajeRed;
+
+  // Pasamos el número de muestras que queremos tomar
+  double Irms3 = energyMonitor3.calcIrms(1484);
+  // Calculamos la potencia aparente
+  double potencia3 =  Irms3 * voltajeRed;
+
+  
+
+  // Mostramos la información por el monitor serie
+  Serial.print("Potencia 1 = ");
+  Serial.print(potencia1);
+  Serial.print("    Irms 1 = ");
+  Serial.println(Irms1);
+
+ // Mostramos la información por el monitor serie
+  Serial.print("Potencia 2 = ");
+  Serial.print(potencia2);
+  Serial.print("    Irms 2 = ");
+  Serial.println(Irms2);
+
+ // Mostramos la información por el monitor serie
+  Serial.print("Potencia 3 = ");
+  Serial.print(potencia3);
+  Serial.print("    Irms 3 = ");
+  Serial.println(Irms3);
+
+
+  // Enviar a Adafruit IO Feed 1
+  lineauno->save(potencia1);
+  delay(1000);
+
+  // Enviar a Adafruit IO Feed 2
+  lineados->save(potencia2);
+  delay(1000);
+
+  // Enviar a Adafruit IO Feed 3
+  lineatres->save(potencia3);
+  delay(1000);
+  
+  // Confirmacion de envio
+  Serial.print("Data sent \n");
+
+  // Sending readings once every 5 seconds
+  delay(5000);
+
+}
